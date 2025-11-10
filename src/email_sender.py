@@ -44,14 +44,24 @@ class EmailSender:
         request_id: Optional[str] = None,
     ) -> bool:
         try:
-            # Bypass circuit breaker for testing - remove later
-            return await self._send_email_async(
+            # Use circuit breaker to prevent cascading failures
+            return await self.circuit_breaker.call_async(
+                self._send_email_async,  # Remove the internal method, use async directly
                 recipient=recipient,
                 subject=subject,
                 body_html=body_html,
                 body_text=body_text,
                 request_id=request_id,
             )
+
+        except CircuitBreakerOpenError as e:
+            logger.error(
+                f" Circuit breaker is OPEN. "
+                f"Cannot send email to {recipient}. "
+                f"Request ID: {request_id}"
+            )
+            raise
+
         except Exception as e:
             logger.error(
                 f" Failed to send email to {recipient}. "
@@ -59,22 +69,6 @@ class EmailSender:
             )
             raise
 
-    async def _send_email_internal(
-        self,
-        recipient: str,
-        subject: str,
-        body_html: Optional[str] = None,
-        body_text: Optional[str] = None,
-        request_id: Optional[str] = None,
-    ) -> bool:
-        
-        return await self._send_email_async(
-            recipient=recipient,
-            subject=subject,
-            body_html=body_html,
-            body_text=body_text,
-            request_id=request_id,
-        )
 
     async def _send_email_async(
         self,

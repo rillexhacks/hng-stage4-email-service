@@ -1,13 +1,13 @@
 import time
 from enum import Enum
-from typing import Callable, Any
+from typing import Callable, Any, Union
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 
 class CircuitState(str, Enum):
-    """Circuit breaker states"""
 
     CLOSED = "closed"
     OPEN = "open"
@@ -46,7 +46,32 @@ class CircuitBreaker:
 
     def call(self, func: Callable, *args, **kwargs) -> Any:
 
-        # Check if we should transition from OPEN to HALF_OPEN
+        self._check_circuit_state()
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise e
+
+    async def call_async(self, func: Callable, *args, **kwargs) -> Any:
+
+        self._check_circuit_state()
+        try:
+            # Handle both async and sync functions
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args, **kwargs)
+            else:
+                result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise e
+
+    def _check_circuit_state(self):
+
         if self.state == CircuitState.OPEN:
             if time.time() - self.last_failure_time >= self.timeout:
                 self._transition_to_half_open()
@@ -56,18 +81,8 @@ class CircuitBreaker:
                     f"Retry after {self.timeout - (time.time() - self.last_failure_time):.1f}s"
                 )
 
-        try:
-            # Execute the function
-            result = func(*args, **kwargs)
-            self._on_success()
-            return result
-
-        except Exception as e:
-            self._on_failure()
-            raise e
-
     def _on_success(self):
-        """Handle successful execution"""
+
         if self.state == CircuitState.HALF_OPEN:
             self.success_count += 1
             logger.info(
@@ -83,7 +98,7 @@ class CircuitBreaker:
             self.failure_count = 0
 
     def _on_failure(self):
-        """Handle failed execution"""
+
         self.failure_count += 1
         self.last_failure_time = time.time()
 
@@ -102,7 +117,7 @@ class CircuitBreaker:
             self._transition_to_open()
 
     def _transition_to_open(self):
-        """Transition to OPEN state"""
+
         self.state = CircuitState.OPEN
         self.last_state_change_time = time.time()
         logger.error(
@@ -111,7 +126,7 @@ class CircuitBreaker:
         )
 
     def _transition_to_half_open(self):
-        """Transition to HALF_OPEN state"""
+
         self.state = CircuitState.HALF_OPEN
         self.success_count = 0
         self.failure_count = 0
@@ -121,7 +136,7 @@ class CircuitBreaker:
         )
 
     def _transition_to_closed(self):
-        """Transition to CLOSED state"""
+
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.success_count = 0
@@ -143,7 +158,7 @@ class CircuitBreaker:
         }
 
     def reset(self):
-        """Manually reset circuit breaker to CLOSED state"""
+
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.success_count = 0
