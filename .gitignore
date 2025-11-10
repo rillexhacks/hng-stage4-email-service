@@ -1,0 +1,24 @@
+# Test files
+test_*.py
+test1*.py
+*_test.py
+test_*/
+testing/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment variables (if not already there)
+.env
+.env.local
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
