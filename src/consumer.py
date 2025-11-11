@@ -17,7 +17,7 @@ from .config import settings, get_rabbitmq_url
 from .schemas import DirectEmailRequest, EmailResponseData
 from .db.main import get_db
 from .models import EmailLog, EmailStatus
-from .email_sender import email_sender
+from .email_sender import create_email_sender
 from .redis_client import redis_client
 from .circuit_breaker import CircuitBreakerOpenError
 
@@ -31,6 +31,7 @@ class AsyncEmailConsumer:
         self.failed_queue_name = settings.failed_queue_name
         self.connection = None
         self.channel = None
+        self.email_sender = create_email_sender()
 
     async def connect(self):
         try:
@@ -116,7 +117,7 @@ class AsyncEmailConsumer:
                 log_id = email_log.id
 
             # 3. Send email directly using the schema data
-            await email_sender.send_email(
+            await self.email_sender.send_email(
                 recipient=email_request.to_email,
                 subject=email_request.subject,
                 body_html=email_request.html_content or email_request.content,

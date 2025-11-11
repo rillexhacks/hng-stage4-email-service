@@ -158,5 +158,5 @@ class EmailSender:
         return self.circuit_breaker.get_state()
 
 
-# Global email sender instance
-email_sender = EmailSender()
+def create_email_sender():
+    return EmailSender()

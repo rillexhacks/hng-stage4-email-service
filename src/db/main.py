@@ -2,7 +2,6 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from ..config import settings
-from contextlib import asynccontextmanager
 from ..models import Base
 
 engine = create_async_engine(
@@ -19,13 +18,11 @@ AsyncSessionLocal = sessionmaker(
     autoflush=False,
 )
 
-@asynccontextmanager
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Proper async context manager for database sessions"""
+    """Database dependency for FastAPI"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise

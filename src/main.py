@@ -14,6 +14,7 @@ from src.config import settings
 from src.db.main import init_db
 from src.consumer import async_email_consumer
 from src.redis_client import redis_client
+from src.routes import router
 
 
 # Configure logging
@@ -29,9 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 def start_consumer_in_thread():
-    """
-    Start RabbitMQ consumer in background thread with its own event loop
-    """
     def run_consumer():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -58,9 +56,6 @@ def start_consumer_in_thread():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Lifespan context manager for startup/shutdown
-    """
     # Startup
     logger.info("🚀 Starting Email Service...")
     # Connect to Redis
@@ -75,9 +70,6 @@ async def lifespan(app: FastAPI):
     consumer_thread = start_consumer_in_thread()
     
     logger.info("✅ Email Service started successfully!")
-    logger.info(f"🌐 API available at http://0.0.0.0:{settings.service_port}")
-    logger.info(f"📚 API docs at http://0.0.0.0:{settings.service_port}/docs")
-    
     yield
     
     # Shutdown
@@ -109,7 +101,7 @@ app.add_middleware(
 )
 
 
-# app.include_router(router, tags=["email-service"])
+app.include_router(router, tags=["email-service"])
 
 
 
