@@ -1,75 +1,57 @@
-
+import os
 from pydantic_settings import BaseSettings
 from pydantic import EmailStr, Field
 
 
 class Settings(BaseSettings):
     
-    # Service Configuration
-    service_name: str = "email-service"
-    service_port: int = 8002
-    environment: str = "development"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/email_service")
     
-    # Database Configuration
-    DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:admin@localhost:5432/email_db",
-        description="PostgreSQL connection string"
-    )
+    # RabbitMQ - use container names in Docker
+
+    rabbitmq_host: str = os.getenv("RABBITMQ_HOST", "localhost")
+    rabbitmq_port: int = int(os.getenv("RABBITMQ_PORT", "5672"))
+    rabbitmq_user: str = os.getenv("RABBITMQ_USER", "guest")
+    rabbitmq_password: str = os.getenv("RABBITMQ_PASSWORD", "guest")
+    rabbitmq_vhost: str = os.getenv("RABBITMQ_VHOST", "/")
     
-    # Redis Configuration
-    redis_url: str = Field(
-        default="redis://localhost:6379/0",
-        description="Redis connection string for caching"
-    )
+    # Redis
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
-    # RabbitMQ Configuration
-    rabbitmq_host: str = "localhost"
-    rabbitmq_port: int = 5672
-    rabbitmq_user: str = "guest"
-    rabbitmq_password: str = "guest"
-    rabbitmq_vhost: str = "/"
-    email_queue_name: str = "email.queue"
-    failed_queue_name: str = "email.failed.queue"
+    # Email Service
+    service_name: str = os.getenv("SERVICE_NAME", "email-service")
+    service_port: int = int(os.getenv("SERVICE_PORT", "8002"))
+    environment: str = os.getenv("ENVIRONMENT", "development")
+    log_level: str = os.getenv("LOG_LEVEL", "INFO")
     
     # Template Service
-    template_service_url: str = Field(
-        default="http://localhost:8004",
-        description="Base URL for Template Service"
-    )
+    template_service_url: str = os.getenv("TEMPLATE_SERVICE_URL", "http://localhost:8004")
     
     # SMTP Configuration
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_user: EmailStr = Field(
-        default="your-email@gmail.com",
-        description="SMTP username (email address)"
-    )
-    smtp_password: str = Field(
-        default="your-app-password",
-        description="SMTP password or app-specific password"
-    )
-    smtp_from: EmailStr = Field(
-        default="noreply@yourapp.com",
-        description="From email address"
-    )
-    smtp_from_name: str = "Your App Notifications"
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "465"))
+    smtp_user: str = os.getenv("SMTP_USER", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    smtp_from: str = os.getenv("SMTP_FROM", "")
+    smtp_from_name: str = os.getenv("SMTP_FROM_NAME", "Notification System")
     
-    # Retry Configuration
-    max_retry_attempts: int = 5
-    initial_retry_delay: int = 1  # seconds
-    max_retry_delay: int = 300  # 5 minutes
-    backoff_multiplier: int = 2
-    
-    # Circuit Breaker Configuration
+    # Circuit Breaker
     circuit_breaker_failure_threshold: int = 5
-    circuit_breaker_timeout: int = 30  # seconds
-    circuit_breaker_half_open_attempts: int = 1
+    circuit_breaker_timeout: int = 60
+    circuit_breaker_half_open_attempts: int = 2
+    
+    # Retry Settings
+    max_retry_attempts: int = 3
+    initial_retry_delay: int = int(os.getenv("INITIAL_RETRY_DELAY", "1"))
+    max_retry_delay: int = int(os.getenv("MAX_RETRY_DELAY", "300"))
+    backoff_multiplier: int = int(os.getenv("BACKOFF_MULTIPLIER", "2"))
     
     # Idempotency Configuration
-    idempotency_ttl: int = 86400  # 24 hours
+    idempotency_ttl: int = int(os.getenv("IDEMPOTENCY_TTL", "86400"))
     
-    # Logging Configuration
-    log_level: str = "INFO"
+    # Queue Names
+    email_queue_name: str = "email.queue"
+    failed_queue_name: str = "email.failed.queue"
     
     class Config:
         env_file = ".env"

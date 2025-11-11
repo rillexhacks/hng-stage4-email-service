@@ -33,25 +33,43 @@ class AsyncEmailConsumer:
         self.channel = None
         self.email_sender = create_email_sender()
 
+    async def connect_with_retry(self, max_retries=10, base_delay=2):
+        """Connect to RabbitMQ with retry logic and exponential backoff"""
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempting to connect to RabbitMQ (attempt {attempt + 1}/{max_retries})")
+                
+                self.connection = await connect_robust(
+                    get_rabbitmq_url()
+                )
+                self.channel = await self.connection.channel()
+
+                # Ensure only 1 message is processed at a time per worker
+                await self.channel.set_qos(prefetch_count=1)
+
+                # Declare queues
+                await self.channel.declare_queue(self.queue_name, durable=True)
+                await self.channel.declare_queue(self.failed_queue_name, durable=True)
+
+                logger.info("✅ Connected to RabbitMQ successfully (async)")
+                return True
+
+            except Exception as e:
+                wait_time = base_delay * (2 ** attempt)  # Exponential backoff
+                logger.warning(f"Failed to connect to RabbitMQ (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error("Max retries reached. Could not connect to RabbitMQ")
+                    raise
+        
+        return False
+
     async def connect(self):
-        try:
-            self.connection = await connect_robust(
-                get_rabbitmq_url()
-            )
-            self.channel = await self.connection.channel()
-
-            # Ensure only 1 message is processed at a time per worker
-            await self.channel.set_qos(prefetch_count=1)
-
-            # Declare queues
-            await self.channel.declare_queue(self.queue_name, durable=True)
-            await self.channel.declare_queue(self.failed_queue_name, durable=True)
-
-            logger.info("Connected to RabbitMQ successfully (async)")
-
-        except Exception as e:
-            logger.error(f"Failed to connect to RabbitMQ: {str(e)}")
-            raise
+        """Connect to RabbitMQ (wrapper for retry logic)"""
+        return await self.connect_with_retry()
 
     async def start_consuming(self):
       

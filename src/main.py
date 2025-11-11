@@ -7,6 +7,7 @@ import asyncio
 import threading
 import sys
 import os
+
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -20,10 +21,8 @@ from src.routes import router
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 logger = logging.getLogger(__name__)
@@ -33,21 +32,22 @@ def start_consumer_in_thread():
     def run_consumer():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         try:
             logger.info("🚀 Starting RabbitMQ consumer in thread...")
             loop.run_until_complete(async_email_consumer.connect())
             loop.run_until_complete(redis_client.connect())
             from src.db.main import init_db
+
             loop.run_until_complete(init_db())
             logger.info("✅ Database tables created in consumer thread")
             loop.run_until_complete(async_email_consumer.start_consuming())
-            
+
         except Exception as e:
             logger.error(f"❌ Consumer thread failed: {str(e)}")
         finally:
             loop.close()
-    
+
     # Actually start the thread
     consumer_thread = threading.Thread(target=run_consumer, daemon=True)
     consumer_thread.start()
@@ -65,16 +65,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Redis connection failed: {str(e)}")
         # Continue anyway - idempotency will be disabled
-    
+
     # Start consumer
     consumer_thread = start_consumer_in_thread()
-    
+
     logger.info("✅ Email Service started successfully!")
     yield
-    
+
     # Shutdown
     logger.info("⏹️ Shutting down Email Service...")
-    
+
     # Stop consumer
     try:
         logger.info("✅ Consumer stopped")
@@ -88,13 +88,13 @@ app = FastAPI(
     title="Email Service",
     description="Email notification processing service",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -104,15 +104,13 @@ app.add_middleware(
 app.include_router(router, tags=["email-service"])
 
 
-
-
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Run the FastAPI app
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=settings.service_port,
-        reload=settings.environment == "development"
+        reload=settings.environment == "development",
     )
