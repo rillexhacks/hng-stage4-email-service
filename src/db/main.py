@@ -1,10 +1,9 @@
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from src.config import settings  
+from sqlalchemy.orm import sessionmaker
+from ..config import settings
 from contextlib import asynccontextmanager
-
-Base = declarative_base()
+from ..models import Base
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -34,5 +33,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 async def init_db():
+    """Initialize database tables"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    print("Database tables created successfully")

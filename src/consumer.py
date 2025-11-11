@@ -13,13 +13,13 @@ import os
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import settings, get_rabbitmq_url
-from src.schemas import DirectEmailRequest, EmailResponseData
-from src.db.main import get_db
-from src.models import EmailLog, EmailStatus
-from src.email_sender import email_sender
-from src.redis_client import redis_client
-from src.circuit_breaker import CircuitBreakerOpenError
+from .config import settings, get_rabbitmq_url
+from .schemas import DirectEmailRequest, EmailResponseData
+from .db.main import get_db
+from .models import EmailLog, EmailStatus
+from .email_sender import email_sender
+from .redis_client import redis_client
+from .circuit_breaker import CircuitBreakerOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class AsyncEmailConsumer:
     async def connect(self):
         try:
             self.connection = await connect_robust(
-                get_rabbitmq_url(), loop=asyncio.get_event_loop()
+                get_rabbitmq_url()
             )
             self.channel = await self.connection.channel()
 
@@ -100,13 +100,20 @@ class AsyncEmailConsumer:
                 logger.warning(f"Duplicate email. Request ID: {request_id}")
                 return True
 
-            # 2. TEMPORARILY COMMENT OUT DATABASE OPERATIONS
-            # async with get_db() as db:
-            #     email_log = EmailLog(...)
-            #     db.add(email_log)
-            #     await db.commit()
-            #     await db.refresh(email_log)
-            #     log_id = email_log.id
+           
+            async with get_db() as db:
+                email_log = EmailLog(
+                    request_id=request_id,
+                    recipient=email_request.to_email,
+                    subject=email_request.subject,
+                    body_text=email_request.content,
+                    body_html=email_request.html_content,
+                    status=EmailStatus.PROCESSING
+                )
+                db.add(email_log)
+                await db.commit()
+                await db.refresh(email_log)
+                log_id = email_log.id
 
             # 3. Send email directly using the schema data
             await email_sender.send_email(
@@ -117,11 +124,11 @@ class AsyncEmailConsumer:
                 request_id=request_id,
             )
 
-            # 4. TEMPORARILY COMMENT OUT DATABASE UPDATE
-            # async with get_db() as db:
-            #     email_log = await db.get(EmailLog, log_id)
-            #     email_log.status = EmailStatus.SENT
-            #     await db.commit()
+           
+            async with get_db() as db:
+                email_log = await db.get(EmailLog, log_id)
+                email_log.status = EmailStatus.SENT
+                await db.commit()
 
             # 5. Mark as processed in Redis
             await redis_client.mark_as_processed(request_id)
@@ -134,33 +141,35 @@ class AsyncEmailConsumer:
             return False
 
         except Exception as e:
-            # TEMPORARILY COMMENT OUT DATABASE ERROR HANDLING
-            # try:
-            #     async with get_db() as db:
-            #         result = await db.execute(
-            #             EmailLog.__table__.select().where(EmailLog.request_id == request_id)
-            #         )
-            #         email_log = result.scalar_one_or_none()
-            #         if email_log:
-            #             email_log.status = EmailStatus.FAILED
-            #             email_log.error_message = str(e)
-            #             email_log.retry_count += 1
-            #             await db.commit()
-            # except Exception as db_error:
-            #     logger.error(f"Failed to update DB: {str(db_error)}")
+
+            try:
+                from sqlalchemy import select, update
+                async with get_db() as db:
+                    # Use proper SQLAlchemy 2.0 syntax
+                    stmt = select(EmailLog).where(EmailLog.request_id == request_id)
+                    result = await db.execute(stmt)
+                    email_log = result.scalar_one_or_none()
+                    
+                    if email_log:
+                        email_log.status = EmailStatus.FAILED
+                        email_log.error_message = str(e)
+                        email_log.retry_count += 1
+                        await db.commit()
+            except Exception as db_error:
+                logger.error(f"Failed to update DB: {str(db_error)}")
 
             logger.error(f"Email processing failed: {str(e)}. Request ID: {request_id}")
             return False
 
     async def _handle_failure(self, data: dict, request_id: str):
         """Handle failed messages: retry or move to dead-letter"""
-        # TEMPORARILY COMMENT OUT DATABASE QUERY
-        # async with get_db() as db:
-        #     result = await db.execute(
-        #         EmailLog.__table__.select().where(EmailLog.request_id == request_id)
-        #     )
-        #     email_log = result.scalar_one_or_none()
-        #     retry_count = email_log.retry_count if email_log else 0
+      
+        async with get_db() as db:
+            from sqlalchemy import select
+            stmt = select(EmailLog).where(EmailLog.request_id == request_id)
+            result = await db.execute(stmt)
+            email_log = result.scalar_one_or_none()
+            retry_count = email_log.retry_count if email_log else 0
 
         retry_count = 0  # Temporary fix
 

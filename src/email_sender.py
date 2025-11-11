@@ -4,8 +4,8 @@ from email.mime.multipart import MIMEMultipart
 from typing import Optional
 import logging
 
-from src.config import settings
-from src.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
+from .config import settings
+from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 
 logger = logging.getLogger(__name__)
 
