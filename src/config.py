@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # Database Configuration
     DATABASE_URL: str = Field(
-        default="postgresql://postgres:admin@localhost:5432/email_db",
+        default="postgresql+asyncpg://postgres:admin@localhost:5432/email_db",
         description="PostgreSQL connection string"
     )
     
@@ -80,16 +80,10 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-# def get_rabbitmq_url() -> str:
-#     """
-#     Construct RabbitMQ connection URL
-    
-#     Returns:
-#         str: RabbitMQ connection URL in format:
-#              amqp://user:password@host:port/vhost
-#     """
-#     return (
-#         f"amqp://{settings.rabbitmq_user}:{settings.rabbitmq_password}"
-#         f"@{settings.rabbitmq_host}:{settings.rabbitmq_port}"
-#         f"{settings.rabbitmq_vhost}"
-#     )
+def get_rabbitmq_url() -> str:
+   
+    return (
+        f"amqp://{settings.rabbitmq_user}:{settings.rabbitmq_password}"
+        f"@{settings.rabbitmq_host}:{settings.rabbitmq_port}"
+        f"{settings.rabbitmq_vhost}"
+    )

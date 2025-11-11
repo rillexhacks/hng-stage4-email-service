@@ -1,20 +1,17 @@
-
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from src.config import settings  
-
+from contextlib import asynccontextmanager
 
 Base = declarative_base()
-
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=(settings.environment == "development"),  
     future=True,
-    pool_pre_ping=True, 
+    pool_pre_ping=True,
 )
-
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
@@ -23,12 +20,18 @@ AsyncSessionLocal = sessionmaker(
     autoflush=False,
 )
 
-
+@asynccontextmanager
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Proper async context manager for database sessions"""
     async with AsyncSessionLocal() as session:
-        yield session
-
-
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 async def init_db():
     async with engine.begin() as conn:

@@ -46,7 +46,7 @@ class EmailSender:
         try:
             # Use circuit breaker to prevent cascading failures
             return await self.circuit_breaker.call_async(
-                self._send_email_async,  # Remove the internal method, use async directly
+                self._send_email_async,  
                 recipient=recipient,
                 subject=subject,
                 body_html=body_html,
@@ -113,10 +113,9 @@ class EmailSender:
                 port=self.smtp_port,
                 username=self.smtp_user,
                 password=self.smtp_password,
-                start_tls=True,
+                use_tls=True,  
                 timeout=30,
             )
-
             logger.info(
                 f" Email sent successfully to {recipient}. "
                 f"Subject: '{subject}'. Request ID: {request_id}"

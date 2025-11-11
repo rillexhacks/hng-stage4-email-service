@@ -1,23 +1,22 @@
-"""
-Main Application File for Email Service
-
-This starts:
-1. FastAPI web server (health checks, metrics)
-2. RabbitMQ consumer worker (email processing)
-"""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import sys
 from contextlib import asynccontextmanager
+import asyncio
 import threading
 
-from app.config import settings
-from app.database import init_db
-from app.routes import router
-from app.consumer import email_consumer
-from app.redis_client import redis_client
+import sys
+import os
+
+# Add the parent directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.config import settings
+from src.db.main import init_db
+# from src.routes import router     # Comment out - don't have this yet
+from src.consumer import async_email_consumer
+from src.redis_client import redis_client
 
 # Configure logging
 logging.basicConfig(
@@ -31,44 +30,48 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def start_consumer():
+def start_consumer_in_thread():
     """
-    Start RabbitMQ consumer in background thread
-    
-    This runs continuously, processing messages from the queue
+    Start RabbitMQ consumer in background thread with its own event loop
     """
-    try:
-        logger.info("🚀 Starting RabbitMQ consumer thread...")
-        email_consumer.connect()
-        email_consumer.start_consuming()
-    except Exception as e:
-        logger.error(f"❌ Consumer thread failed: {str(e)}")
-        sys.exit(1)
+    def run_consumer():
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            logger.info("🚀 Starting RabbitMQ consumer in thread...")
+            loop.run_until_complete(async_email_consumer.connect())
+            loop.run_until_complete(async_email_consumer.start_consuming())
+        except Exception as e:
+            logger.error(f"❌ Consumer thread failed: {str(e)}")
+        finally:
+            loop.close()
+
+    consumer_thread = threading.Thread(
+        target=run_consumer,
+        daemon=True,
+        name="email-consumer"
+    )
+    consumer_thread.start()
+    return consumer_thread
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup/shutdown
-    
-    Startup:
-    - Initialize database
-    - Connect to Redis
-    - Start consumer thread
-    
-    Shutdown:
-    - Close connections gracefully
     """
     # Startup
     logger.info("🚀 Starting Email Service...")
     
     # Initialize database
     try:
-        init_db()
+        await init_db()
         logger.info("✅ Database initialized")
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {str(e)}")
-        sys.exit(1)
+        # Continue without database for now
     
     # Connect to Redis
     try:
@@ -78,13 +81,8 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Redis connection failed: {str(e)}")
         # Continue anyway - idempotency will be disabled
     
-    # Start consumer in background thread
-    consumer_thread = threading.Thread(
-        target=start_consumer,
-        daemon=True
-    )
-    consumer_thread.start()
-    logger.info("✅ Consumer thread started")
+    # Start consumer
+    consumer_thread = start_consumer_in_thread()
     
     logger.info("✅ Email Service started successfully!")
     logger.info(f"🌐 API available at http://0.0.0.0:{settings.service_port}")
@@ -97,7 +95,6 @@ async def lifespan(app: FastAPI):
     
     # Stop consumer
     try:
-        email_consumer.stop_consuming()
         logger.info("✅ Consumer stopped")
     except Exception as e:
         logger.error(f"❌ Error stopping consumer: {str(e)}")
@@ -123,14 +120,14 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify allowed origins
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routes
-app.include_router(router, tags=["email-service"])
+# Comment out router for now - we'll create it later
+# app.include_router(router, tags=["email-service"])
 
 
 # Root endpoint

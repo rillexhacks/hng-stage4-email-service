@@ -89,7 +89,7 @@ class EmailLog(Base):
     )
 
     # Metadata
-    metadata = Column(JSON, comment="Additional metadata (user agent, IP, etc.)")
+    email_metadata = Column(JSON, comment="Additional metadata (user agent, IP, etc.)")
 
     def __repr__(self):
         return (
