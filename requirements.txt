@@ -7,7 +7,7 @@ pydantic[dotenv]==1.10.12
 # pydantic-settings not needed with v1 - functionality is built-in
 
 # Database
-asyncpg==0.29.0
+asyncpg==0.30.0
 SQLAlchemy==2.0.23
 alembic==1.13.0
 psycopg2-binary==2.9.9
