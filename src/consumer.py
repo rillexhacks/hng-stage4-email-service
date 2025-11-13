@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from .config import settings, get_rabbitmq_url
 from .schemas import DirectEmailRequest, EmailResponseData
-from .db.main import get_db
+from .db.main import AsyncSessionLocal
 from .models import EmailLog, EmailStatus
 from .email_sender import create_email_sender
 from .redis_client import redis_client
@@ -72,8 +72,13 @@ class AsyncEmailConsumer:
         return await self.connect_with_retry()
 
     async def start_consuming(self):
-      
-        queue = await self.channel.declare_queue(self.queue_name, durable=True)
+        queue = await self.channel.declare_queue(
+            self.queue_name,
+            durable=True,
+            auto_delete=False,
+            exclusive=False,
+            arguments=None,
+        )
         logger.info(f"Starting async consumption from queue: {self.queue_name}")
 
         async with queue.iterator() as queue_iter:
@@ -120,7 +125,7 @@ class AsyncEmailConsumer:
                 return True
 
            
-            async with get_db() as db:
+            async with AsyncSessionLocal() as db:
                 email_log = EmailLog(
                     request_id=request_id,
                     recipient=email_request.to_email,
@@ -144,7 +149,7 @@ class AsyncEmailConsumer:
             )
 
            
-            async with get_db() as db:
+            async with AsyncSessionLocal() as db:
                 email_log = await db.get(EmailLog, log_id)
                 email_log.status = EmailStatus.SENT
                 await db.commit()
@@ -163,7 +168,7 @@ class AsyncEmailConsumer:
 
             try:
                 from sqlalchemy import select, update
-                async with get_db() as db:
+                async with AsyncSessionLocal() as db:
                     # Use proper SQLAlchemy 2.0 syntax
                     stmt = select(EmailLog).where(EmailLog.request_id == request_id)
                     result = await db.execute(stmt)
@@ -183,7 +188,7 @@ class AsyncEmailConsumer:
     async def _handle_failure(self, data: dict, request_id: str):
         """Handle failed messages: retry or move to dead-letter"""
       
-        async with get_db() as db:
+        async with AsyncSessionLocal() as db:
             from sqlalchemy import select
             stmt = select(EmailLog).where(EmailLog.request_id == request_id)
             result = await db.execute(stmt)

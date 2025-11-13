@@ -5,8 +5,10 @@ from pydantic import EmailStr, Field
 
 class Settings(BaseSettings):
     
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/email_service")
-    
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/email_db")
+    TEMPLATE_DATABASE_URL : str = os.getenv("TEMPLATE_DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/template_db")
+    rabbitmq_url: str = Field(..., env="RABBITMQ_URL")
+    rabbitmq_url: str = os.getenv("DATABASE_URL", "amqps://sukxtmgv:UDNx7D0p9kdeeda4yNzwFQQfGAb5csQF@gorilla.lmq.cloudamqp.com/sukxtmgv")
     # RabbitMQ - use container names in Docker
 
     rabbitmq_host: str = os.getenv("RABBITMQ_HOST", "localhost")
@@ -24,8 +26,6 @@ class Settings(BaseSettings):
     environment: str = os.getenv("ENVIRONMENT", "development")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     
-    # Template Service
-    template_service_url: str = os.getenv("TEMPLATE_SERVICE_URL", "http://localhost:8004")
     
     # SMTP Configuration
     smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
@@ -56,16 +56,20 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 
 # Global settings instance
 settings = Settings()
 
 
-def get_rabbitmq_url() -> str:
+# def get_rabbitmq_url() -> str:
    
-    return (
-        f"amqp://{settings.rabbitmq_user}:{settings.rabbitmq_password}"
-        f"@{settings.rabbitmq_host}:{settings.rabbitmq_port}"
-        f"{settings.rabbitmq_vhost}"
-    )
+#     return (
+#         f"amqp://{settings.rabbitmq_user}:{settings.rabbitmq_password}"
+#         f"@{settings.rabbitmq_host}:{settings.rabbitmq_port}"
+#         f"{settings.rabbitmq_vhost}"
+#     )
+
+def get_rabbitmq_url() -> str:
+    return settings.rabbitmq_url

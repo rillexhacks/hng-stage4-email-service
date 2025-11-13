@@ -12,11 +12,11 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import settings
-from src.db.main import init_db
+
 from src.consumer import async_email_consumer
 from src.redis_client import redis_client
 from src.routes import router
-
+from src.template_service.template_routes import router as template_router
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +102,7 @@ app.add_middleware(
 
 
 app.include_router(router, tags=["email-service"])
+app.include_router(template_router, tags=["templates"])
 
 
 if __name__ == "__main__":

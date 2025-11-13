@@ -1,6 +1,65 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Dict
+from pydantic import BaseModel, EmailStr, Field, validator
+from typing import Optional, Dict, Any
 from datetime import datetime
+
+# -------------------
+# Queue Message Schemas
+# -------------------
+
+class QueueEmailMessage(BaseModel):
+    """Schema for messages received from the queue - more flexible"""
+    notification_id: Optional[str] = Field(None)
+    player_id: Optional[str] = Field(None)
+    to_email: Optional[EmailStr] = Field(None)
+    from_email: Optional[EmailStr] = Field(None)
+    subject: Optional[str] = Field(None)
+    content: Optional[str] = Field(None)
+    html_content: Optional[str] = Field(None)
+    request_id: Optional[str] = Field(None)
+    correlation_id: Optional[str] = Field(None)
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    
+    # Additional fields that might come from external services
+    user_email: Optional[EmailStr] = Field(None)
+    email: Optional[EmailStr] = Field(None)
+    message: Optional[str] = Field(None)
+    title: Optional[str] = Field(None)
+    body: Optional[str] = Field(None)
+    
+    def to_direct_email_request(self) -> 'DirectEmailRequest':
+        """Convert queue message to DirectEmailRequest with field mapping"""
+        # Try to extract email from various possible fields
+        recipient_email = (
+            self.to_email or
+            self.user_email or
+            self.email
+        )
+        
+        # Try to extract subject from various possible fields
+        email_subject = (
+            self.subject or
+            self.title or
+            "Notification"  # Default subject
+        )
+        
+        # Try to extract content from various possible fields
+        email_content = (
+            self.content or
+            self.message or
+            self.body or
+            "You have a new notification"  # Default content
+        )
+        
+        if not recipient_email:
+            raise ValueError("No valid email address found in message")
+            
+        return DirectEmailRequest(
+            to_email=recipient_email,
+            from_email=self.from_email or "noreply@company.com",
+            subject=email_subject,
+            content=email_content,
+            html_content=self.html_content
+        )
 
 # -------------------
 # Request Schemas
