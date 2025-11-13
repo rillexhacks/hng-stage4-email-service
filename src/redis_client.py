@@ -1,11 +1,10 @@
-# src/redis_client.py
 import redis.asyncio as redis
 import logging
 from typing import Optional
 import os
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
-
 
 class RedisClient:
     def __init__(self):
@@ -18,28 +17,24 @@ class RedisClient:
         return self._connected
 
     async def connect(self):
-        """Connect to Redis using environment variables"""
+        """Connect to Redis using a REDIS_URL environment variable"""
         try:
-            # Get Redis configuration from environment variables
-            redis_host = os.getenv("REDIS_HOST", "localhost")
-            redis_port = int(os.getenv("REDIS_PORT", "6379"))
-            redis_db = int(os.getenv("REDIS_DB", "0"))
-            
-            self.redis = redis.Redis(
-                host=redis_host,
-                port=redis_port,
-                db=redis_db,
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+            # Create Redis client directly from URL
+            self.redis = redis.from_url(
+                redis_url,
                 decode_responses=True,
                 socket_connect_timeout=5,
-                socket_timeout=5
+                socket_timeout=5,
             )
-            
+
             # Test connection
             await self.redis.ping()
             self._connected = True
-            logger.info(f"✅ Connected to Redis successfully at {redis_host}:{redis_port}")
+            logger.info(f"✅ Connected to Redis successfully: {redis_url}")
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Redis connection failed: {e}")
             self._connected = False
@@ -57,7 +52,7 @@ class RedisClient:
         if not self._connected or not self.redis:
             logger.warning("📝 Redis not connected - skipping idempotency check")
             return False
-            
+
         try:
             exists = await self.redis.exists(f"processed:{request_id}")
             return bool(exists)
@@ -70,7 +65,7 @@ class RedisClient:
         if not self._connected or not self.redis:
             logger.warning("📝 Redis not connected - skipping mark as processed")
             return False
-            
+
         try:
             await self.redis.setex(f"processed:{request_id}", ttl, "true")
             logger.debug(f"📝 Marked request as processed: {request_id}")
