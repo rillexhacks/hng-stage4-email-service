@@ -2,9 +2,9 @@
 fastapi==0.104.1
 uvicorn==0.24.0
 
-# Pydantic (will auto-install compatible pydantic-core)
-pydantic==2.5.0
-pydantic-settings==2.1.0
+# Pydantic - using v1 to avoid Rust compilation issues on Render
+pydantic[dotenv]==1.10.12
+# pydantic-settings not needed with v1 - functionality is built-in
 
 # Database
 asyncpg==0.29.0
