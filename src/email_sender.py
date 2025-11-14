@@ -46,7 +46,7 @@ class EmailSender:
         try:
             # Use circuit breaker to prevent cascading failures
             return await self.circuit_breaker.call_async(
-                self._send_email_async,  
+                self._send_email_async,
                 recipient=recipient,
                 subject=subject,
                 body_html=body_html,
@@ -69,7 +69,6 @@ class EmailSender:
             )
             raise
 
-
     async def _send_email_async(
         self,
         recipient: str,
@@ -78,8 +77,7 @@ class EmailSender:
         body_text: Optional[str] = None,
         request_id: Optional[str] = None,
     ) -> bool:
-            
-      
+
         # Create message container
         message = MIMEMultipart("alternative")
         message["From"] = f"{self.from_name} <{self.from_email}>"
@@ -107,14 +105,19 @@ class EmailSender:
 
         try:
             # Send email using aiosmtplib
+            # Choose TLS mode based on port: 465 -> implicit TLS, 587 -> STARTTLS
+            use_tls = True if self.smtp_port == 465 else False
+            start_tls = True if self.smtp_port == 587 else False
+
             await aiosmtplib.send(
                 message,
                 hostname=self.smtp_host,
                 port=self.smtp_port,
                 username=self.smtp_user,
                 password=self.smtp_password,
-                use_tls=True,  
-                timeout=30,
+                use_tls=use_tls,
+                start_tls=start_tls,
+                timeout=60,
             )
             logger.info(
                 f" Email sent successfully to {recipient}. "
@@ -137,14 +140,32 @@ class EmailSender:
             raise
 
     async def test_connection(self) -> bool:
-     
+
         try:
-            # Try to connect and authenticate
-            async with aiosmtplib.SMTP(
-                hostname=self.smtp_host, port=self.smtp_port, timeout=10
-            ) as smtp:
-                await smtp.starttls()
-                await smtp.login(self.smtp_user, self.smtp_password)
+            # Try to connect and authenticate.
+            # For implicit TLS (port 465) connect with use_tls=True and call login.
+            if self.smtp_port == 465:
+                async with aiosmtplib.SMTP(
+                    hostname=self.smtp_host,
+                    port=self.smtp_port,
+                    timeout=15,
+                    use_tls=True,
+                ) as smtp:
+                    await smtp.login(self.smtp_user, self.smtp_password)
+
+            else:
+                # For STARTTLS (port 587 or others) connect plain, then upgrade
+                async with aiosmtplib.SMTP(
+                    hostname=self.smtp_host, port=self.smtp_port, timeout=15
+                ) as smtp:
+                    try:
+                        await smtp.starttls()
+                    except Exception:
+                        # starttls may fail if server doesn't support it; continue to login anyway
+                        logger.debug(
+                            " STARTTLS failed or unsupported; attempting login without STARTTLS"
+                        )
+                    await smtp.login(self.smtp_user, self.smtp_password)
 
             logger.info(" SMTP connection test successful")
             return True
@@ -154,7 +175,7 @@ class EmailSender:
             return False
 
     def get_circuit_breaker_status(self) -> dict:
-       
+
         return self.circuit_breaker.get_state()
 
 
