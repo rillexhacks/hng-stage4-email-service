@@ -2,9 +2,11 @@ import redis.asyncio as redis
 import logging
 from typing import Optional
 import os
+import asyncio
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
 
 class RedisClient:
     def __init__(self):
@@ -21,19 +23,40 @@ class RedisClient:
         try:
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-            # Create Redis client directly from URL
-            self.redis = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-            )
+            # Upstash requires ssl_certfile=None to use default system certs
+            # and longer timeouts for network stability
+            connect_kwargs = {
+                "decode_responses": True,
+                "socket_connect_timeout": 15,
+                "socket_timeout": 15,
+                "retry_on_timeout": True,
+            }
 
-            # Test connection
-            await self.redis.ping()
-            self._connected = True
-            logger.info(f"✅ Connected to Redis successfully: {redis_url}")
-            return True
+            # For Upstash (rediss://) add SSL settings
+            if redis_url.startswith("rediss://"):
+                connect_kwargs["ssl_certfile"] = None  # Use system CA bundle
+                connect_kwargs["ssl"] = True
+                connect_kwargs["ssl_check_hostname"] = True
+
+            # Create Redis client directly from URL
+            self.redis = redis.from_url(redis_url, **connect_kwargs)
+
+            # Test connection with retry
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await self.redis.ping()
+                    self._connected = True
+                    logger.info(f"✅ Connected to Redis successfully: {redis_url}")
+                    return True
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"⚠️ Redis connection attempt {attempt + 1} failed, retrying... Error: {e}"
+                        )
+                        await asyncio.sleep(2)
+                    else:
+                        raise
 
         except Exception as e:
             logger.error(f"❌ Redis connection failed: {e}")

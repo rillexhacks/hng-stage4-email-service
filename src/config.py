@@ -6,16 +6,17 @@ from pydantic import EmailStr, Field
 class Settings(BaseSettings):
 
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/email_db"
+        "DATABASE_URL",
+        ""
     )
     TEMPLATE_DATABASE_URL: str = os.getenv(
         "TEMPLATE_DATABASE_URL",
-        "postgresql+asyncpg://postgres:admin@localhost:5432/template_db",
+    ""
     )
     rabbitmq_url: str = Field(..., env="RABBITMQ_URL")
     rabbitmq_url: str = os.getenv(
         "DATABASE_URL",
-        "amqps://sukxtmgv:UDNx7D0p9kdeeda4yNzwFQQfGAb5csQF@gorilla.lmq.cloudamqp.com/sukxtmgv",
+       ""
     )
     # RabbitMQ - use container names in Docker
 
